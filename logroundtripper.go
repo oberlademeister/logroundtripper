@@ -12,10 +12,12 @@ import (
 // LogRoundTripper is a golang RoundTripper object which encapsulates the std library http.Transport
 // but - for each request, writes a log file entry to an io.Writer
 type LogRoundTripper struct {
-	Transport *http.Transport
-	DryRun    bool
-	Out       io.Writer
-	requestID int16
+	Transport   *http.Transport
+	DryRun      bool
+	PrintBody   bool
+	PrintHeader bool
+	Out         io.Writer
+	requestID   int16
 }
 
 type readCloser struct {
@@ -36,7 +38,10 @@ func (lrt *LogRoundTripper) RoundTrip(req *http.Request) (*http.Response, error)
 		var reqBody []byte
 		fmt.Fprintf(&reqBuf, "--\nREQ Time: %d.%03d ID-%04x\n", t0.Unix(), t0.UnixNano()%1000, thisID)
 		fmt.Fprintf(&reqBuf, "%s %q\n", req.Method, req.URL)
-		if req.Body != nil {
+		if lrt.PrintHeader {
+			fmt.Fprintf(&reqBuf, "HDR %v\n", req.Header)
+		}
+		if lrt.PrintBody && req.Body != nil {
 			var err error
 			reqBody, err = ioutil.ReadAll(req.Body)
 			req.Body.Close()
@@ -62,7 +67,10 @@ func (lrt *LogRoundTripper) RoundTrip(req *http.Request) (*http.Response, error)
 		var resBody []byte
 		t1 := time.Now()
 		fmt.Fprintf(&resBuf, "--\nRES Time: %d.%03d %dms ID-%04x Status: %d\n", t1.Unix(), t1.UnixNano()%1000, t1.Sub(t0).Nanoseconds()/1000000, thisID, resp.StatusCode)
-		if resp.Body != nil {
+		if lrt.PrintHeader {
+			fmt.Fprintf(&resBuf, "HDR %v\n", resp.Header)
+		}
+		if lrt.PrintBody && resp.Body != nil {
 			var err error
 			resBody, err = ioutil.ReadAll(resp.Body)
 			resp.Body.Close()
